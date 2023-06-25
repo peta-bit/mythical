@@ -3,17 +3,13 @@ import openai
 import random
 import re
 
-# Set up the OpenAI API client, plug API key in here
-openai.api_key = "xxxxxxxxxxx"
-#OpenAI detects if these keys are shared out and deactivates them if they are so I wasn't able to include a working key in here. I can try sending you a key separately if you need one.
+# Set up the OpenAI API client
+openai.api_key = "xxxxxx"
 
-# Persistent System Prompt (used to be named start_prompt)
+# Persistent System Prompt
 system_prompt = [
-    {"role": "system", "content": "You will act as a text adventure game. Only reply with game output and nothing else. Do not write explanations. Do not type commands unless I instruct you to do so. When I need to tell you something outside of the game, I will do so by putting text inside curly brackets. When you reply back outside of the game put your text inside curly brackets too. We will play this game in 2nd Person POV. The game's genre will be grimdark fantasy."},
+    {"role": "system", "content": "You will act as a text adventure game. Only reply with game output and nothing else. Do not write explanations. When I need to tell you something outside of the game, I will do so by putting text inside curly brackets. When you reply back outside of the game put your text inside curly brackets too. The game's genre will be fantasy."},
 ]
-
-#Deprecated
-# starting_message = "Welcome to the Game. You are standing at the entrance of a dark cave. What do you want to do?"
 
 start_scenes = [
     "You are standing at the entrance of a dark cave. What do you want to do?",
@@ -45,6 +41,7 @@ start_scenes = [
 
 conversation = []
 full_game_history = []
+game_mechanics = []
 
 #This generates a randomized starting message
 def generate_start_prompt():
@@ -59,32 +56,35 @@ def generate_text():
     total_chars = sum([len(message["content"]) for message in conversation])
 
     # If the total number of characters is above the threshold, remove the earliest messages until it's below the threshold
-    max_chars = 2048  # Leave half the total tokens for the AI's response
+    max_chars = 2000  # Leave half the total tokens for the AI's response
     while total_chars > max_chars:
         removed_message = conversation.pop(0)  # Remove the earliest message
         total_chars -= len(removed_message["content"])
 
-    # print("DEBUG: Inside generate_text()")
-    # print("DEBUG: Sending the following conversation to OpenAI:")
-    # for message in conversation:
-    #     print(f'{message["role"]}: {message["content"]}')
-    # print("DEBUG: Calling openai.ChatCompletion.create()")
+    #print("DEBUG: Inside generate_text()")
+    #print("DEBUG: Sending the following conversation to OpenAI:")
+    #all_messages = system_prompt + game_mechanics + conversation
+    #for message in all_messages:
+    #    print(f'{message["role"]}: {message["content"]}')
+
+    #print("DEBUG: Calling openai.ChatCompletion.create()")
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-3.5-turbo-16k",
         messages=[
             *system_prompt,
+            *game_mechanics,
             *conversation  # Unpack the conversation list here       
         ],
-        max_tokens=2048,
+        max_tokens=6385,
         n=1,
         temperature=0.7,        
         presence_penalty=0.35,
         frequency_penalty=0.35,
     )
     
-    # print("DEBUG: Received a response from OpenAI")
+    print("DEBUG: Received a response from OpenAI")
     message = response['choices'][0]['message']['content']
-    # print(f"DEBUG: Received the following message from OpenAI: {message}")
+    print(f"DEBUG: Received the following message from OpenAI: {message}")
     return message
 
 #Save Game Function
@@ -117,76 +117,77 @@ def load_game():
     return conversation
 
 #Outer Game Loop
-def main(load_saved_game=True):
+def game_loop(load_saved_game=True):
     global conversation
     global full_game_history
 
     project_folder = os.path.dirname(os.path.abspath(__file__))
     save_file_path = os.path.join(project_folder, "saved_game.txt")
 
-    while True:
-        # Check if saved game exists
-        if load_saved_game and os.path.isfile(save_file_path):
-            print("A saved game file was found. Do you want to load it? (yes/no)")
-            load_response = input("> ")
-            if load_response.lower() in ["yes", "y"]:
-                conversation = load_game()
-                full_game_history = conversation.copy()  # Copy the loaded game to full_game_history
-                print("Game Loaded!")
-                print(conversation[-1]["content"])
-            else:
-                start_prompt = generate_start_prompt()
-                print(start_prompt[-1]["content"] + "\n")  # Print the starting message to the user
-                conversation = system_prompt + start_prompt
-                full_game_history = generate_start_prompt()  # Initialize full_game_history the same as conversation
+    # Check if saved game exists
+    if load_saved_game and os.path.isfile(save_file_path):
+        print("A saved game file was found. Do you want to load it? (yes/no)")
+        load_response = input("> ")
+        if load_response.lower() in ["yes", "y"]:
+            conversation = load_game()
+            full_game_history = conversation.copy()
+            print("Game Loaded!")
+            print(conversation[-1]["content"])
         else:
             start_prompt = generate_start_prompt()
             print(start_prompt[-1]["content"] + "\n")
             conversation = system_prompt + start_prompt
-            full_game_history = generate_start_prompt()  # Initialize full_game_history the same as conversation
-        
-        # Inner Game loop
-        while True:
-            user_input = input("> ")
+            full_game_history = conversation.copy()  # Copy the conversation to full_game_history
+    else:
+        start_prompt = generate_start_prompt()
+        print(start_prompt[-1]["content"] + "\n")
+        conversation = system_prompt + start_prompt
+        full_game_history = conversation.copy()  # Copy the conversation to full_game_history
 
-            # Check for special commands before appending user input to the conversation
-            if user_input.lower() in ["save-game", "s"]:
+    # Inner Game loop
+    while True:
+        user_input = input("> ")
+
+        # Check for special commands before appending user input to the conversation
+        if user_input.lower() in ["save-game", "s"]:
+            save_game(full_game_history)
+            print("Game Saved!")
+            continue
+
+        if user_input.lower() in ["load-game", "l"]:
+            print("Loading...")
+            full_game_history = load_game()
+            if conversation:
+                print("Game Loaded!")
+                print(conversation[-1]["content"])
+            else:
+                print("No saved game.")
+            continue
+
+        if user_input.lower() in ["new-game", "n"]:
+            print("Do you want to save the current game before starting a new one? (yes/no)")
+            save_response = input("> ")
+            if save_response.lower() in ["yes", "y"]:
                 save_game(full_game_history)
                 print("Game Saved!")
-                continue  # Skip the rest of this loop iteration
+            print("Starting a new game...")
+            return  # Return to the main function instead of calling main() recursively
 
-            if user_input.lower() in ["load-game", "l"]:
-                print("Loading...")
-                full_game_history = load_game()
-                if conversation:
-                    print("Game Loaded!")
-                    print(conversation[-1]["content"])
-                else:
-                    print("No saved game.")
-                continue  # Skip the rest of this loop iteration
+        if user_input.lower() in ["quit-game", "x"]:
+            print("Goodbye!")
+            return  # Exit the entire game
 
-            if user_input.lower() in ["new-game", "n"]:
-                print("Do you want to save the current game before starting a new one? (yes/no)")
-                save_response = input("> ")
-                if save_response.lower() in ["yes", "y"]:
-                    save_game(full_game_history)
-                    print("Game Saved!")
-                print("Starting a new game...")
-                main(load_saved_game=False)  # Restart the game without loading a saved game
-                return  # Exit the current game instance after starting a new one
-                        
-            if user_input.lower() in ["quit-game", "x"]:
-                print("Goodbye!")
-                return  # Exit the entire game
+        conversation.append({"role": "user", "content": user_input})
+        full_game_history.append({"role": "user", "content": user_input})
+        print("DEBUG: Calling generate_text()")
+        ai_response = generate_text()
+        print(ai_response)
+        conversation.append({"role": "assistant", "content": ai_response})
+        full_game_history.append({"role": "assistant", "content": ai_response})
 
-            conversation.append({"role": "user", "content": user_input})
-            full_game_history.append({"role": "user", "content": user_input})
-            # print("DEBUG: Calling generate_text()")
-            ai_response = generate_text()
-            print(ai_response)
-            conversation.append({"role": "assistant", "content": ai_response})
-            full_game_history.append({"role": "assistant", "content": ai_response})
+def main():
+    while True:
+        game_loop()
 
-# Call main function to start the game
 if __name__ == "__main__":
     main()
