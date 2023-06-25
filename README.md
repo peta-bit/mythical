@@ -1,6 +1,12 @@
 # mythical
 An experimental text adventure game using LLM
 
+*Important* You will need an OpenAI API Key in order for this game to work.
+
+openai.api_key = "xxxxxxxxxxx"
+
+Replace xxxxxxxxxxx with your key.
+
 This game uses OpenAI's Chat Completion endpoints for dynamic story generation
 
 If you want to change the genre of the game, swap out the last portion of the content inside system_prompt.

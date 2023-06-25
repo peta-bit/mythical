@@ -3,9 +3,9 @@ import openai
 import random
 import re
 
-# Set up the OpenAI API client
-openai.api_key = "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"
-#Feel free to use my API key if you don't have your own account set up. It isn't expensive at all but please be judicious with your token usage. Please don't share my API key out without my permission.
+# Set up the OpenAI API client, plug API key in here
+openai.api_key = "xxxxxxxxxxx"
+#OpenAI detects if these keys are shared out and deactivates them if they are so I wasn't able to include a working key in here. I can try sending you a key separately if you need one.
 
 # Persistent System Prompt (used to be named start_prompt)
 system_prompt = [
